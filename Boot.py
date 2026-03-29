@@ -15,7 +15,6 @@ user_points = {}
 user_reader = {}
 user_page = {}
 user_surah = {}
-user_counter = {}
 
 user_tasbeeh_index = {}
 user_tasbeeh_count = {}
@@ -76,14 +75,14 @@ TASBEEH_SEQUENCE = [
 def add_points(uid,n=1):
     user_points[uid]=user_points.get(uid,0)+n
 
-# ===== واجهات =====
+# ===== القائمة =====
 def main_menu(uid=None):
     reader = READERS_NAMES.get(user_reader.get(uid,"husary"))
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📖 القرآن",callback_data="quran")],
-        [InlineKeyboardButton(f"🎧 القارئ الحالي: {reader}",callback_data="reader")],
-        [InlineKeyboardButton("📿 السبحة",callback_data="tasbeeh_menu")],
-        [InlineKeyboardButton("🧿 أذكار",callback_data="azkar")],
+        [InlineKeyboardButton(f"🎧 {reader}",callback_data="reader")],
+        [InlineKeyboardButton("📿 السبحة",callback_data="tasbeeh_menu"),
+         InlineKeyboardButton("🧿 الأذكار",callback_data="azkar")],
         [InlineKeyboardButton("🏆 نقاطي",callback_data="points")],
         [InlineKeyboardButton("👑 المطور",url=f"https://t.me/{DEV_USERNAME}")]
     ])
@@ -100,6 +99,15 @@ async def start(update:Update,context:ContextTypes.DEFAULT_TYPE):
         f"🤍 أهلاً يا {name}\n\nبوت القرآن الكريم\n\n👑 تطوير:\nأحمد المهدي - قنا الحجيرات",
         reply_markup=main_menu(uid)
     )
+
+# ===== قائمة السور (شبكة شيك) =====
+def surah_menu():
+    buttons=[]
+    for i in range(0,114,4):  # 👈 4 في الصف
+        row=[InlineKeyboardButton(SURA_NAMES[j],callback_data=f"sura_{j+1}") for j in range(i,i+4) if j<114]
+        buttons.append(row)
+    buttons.append([InlineKeyboardButton("🔙 رجوع",callback_data="back")])
+    return InlineKeyboardMarkup(buttons)
 
 # ===== عرض الآيات =====
 async def send_ayat(query,uid):
@@ -128,8 +136,8 @@ async def send_ayat(query,uid):
 # ===== الصوت =====
 async def send_audio(query,uid):
     sura=user_surah.get(uid,1)
-    reader_key=user_reader.get(uid,"husary")
-    reciter=READERS.get(reader_key,"husr")
+    reader=user_reader.get(uid,"husary")
+    reciter=READERS.get(reader,"husr")
 
     url=f"https://server8.mp3quran.net/{reciter}/{int(sura):03}.mp3"
 
@@ -152,9 +160,7 @@ async def buttons(update:Update,context:ContextTypes.DEFAULT_TYPE):
     add_points(uid)
 
     if query.data=="quran":
-        kb=[[InlineKeyboardButton(SURA_NAMES[i],callback_data=f"sura_{i+1}")]
-             for i in range(114)]
-        await query.edit_message_text("اختر السورة",reply_markup=InlineKeyboardMarkup(kb))
+        await query.edit_message_text("📖 اختر السورة",reply_markup=surah_menu())
 
     elif query.data.startswith("sura_"):
         user_surah[uid]=int(query.data.split("_")[1])
@@ -181,22 +187,18 @@ async def buttons(update:Update,context:ContextTypes.DEFAULT_TYPE):
     elif query.data.startswith("r_"):
         r=query.data.split("_")[1]
         user_reader[uid]=r
-        await query.edit_message_text(
-            f"✅ تم اختيار {READERS_NAMES[r]}",
-            reply_markup=main_menu(uid)
-        )
+        await query.edit_message_text(f"✅ {READERS_NAMES[r]}",reply_markup=main_menu(uid))
 
     elif query.data=="azkar":
         z=random.choice(AZKAR)
         await query.edit_message_text(z,reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔄",callback_data="azkar")],
-            [InlineKeyboardButton("🔙",callback_data="back")]
+            [InlineKeyboardButton("🔄",callback_data="azkar"),
+             InlineKeyboardButton("🔙",callback_data="back")]
         ]))
 
     elif query.data=="tasbeeh_menu":
         user_tasbeeh_index[uid]=0
         user_tasbeeh_count[uid]=0
-
         cur=TASBEEH_SEQUENCE[0]
 
         await query.edit_message_text(
@@ -222,7 +224,6 @@ async def buttons(update:Update,context:ContextTypes.DEFAULT_TYPE):
 
         user_tasbeeh_index[uid]=i
         user_tasbeeh_count[uid]=c
-
         cur=TASBEEH_SEQUENCE[i]
 
         await query.edit_message_text(
