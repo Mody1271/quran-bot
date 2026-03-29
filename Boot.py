@@ -1,126 +1,73 @@
-import os
-import requests
 import json
-import random
+import requests
 from datetime import datetime
-
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
-TOKEN = os.getenv("TOKEN")
-DATA_FILE = "users.json"
+TOKEN = "8440647341:AAG9um7lK7v5c88_rOF2_Uv8MvujmRstezo"
 
 # ================= STORAGE =================
 def load_users():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
+    try:
+        with open("users.json", "r") as f:
             return json.load(f)
-    return {}
+    except:
+        return {}
 
 def save_users(data):
-    with open(DATA_FILE, "w") as f:
+    with open("users.json", "w") as f:
         json.dump(data, f)
 
 users = load_users()
 
-# ================= CONFIG =================
+# ================= RECITERS =================
 RECITERS = {
-    "عبد الباسط": "afs",
     "الحصري": "husr",
+    "عبد الباسط": "basit",
     "المنشاوي": "minsh",
-    "مشاري العفاسي": "mshari",
     "ماهر المعيقلي": "maher",
+    "سعد الغامدي": "s_gmd",
     "ياسر الدوسري": "yasser",
-    "ناصر القطامي": "nasser",
-    "أحمد العجمي": "ahmad",
-    "السديس": "sudais"
+    "ناصر القطامي": "nasser"
 }
-
-AZKAR = [
-"سبحان الله وبحمده سبحان الله العظيم",
-"اللهم صل وسلم على نبينا محمد",
-"أستغفر الله العظيم وأتوب إليه",
-"لا إله إلا الله وحده لا شريك له له الملك وله الحمد وهو على كل شيء قدير",
-"لا حول ولا قوة إلا بالله",
-"حسبي الله لا إله إلا هو عليه توكلت وهو رب العرش العظيم"
-]
 
 # ================= MENU =================
 def main_menu():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📖 قراءة القرآن", callback_data="read")],
-        [InlineKeyboardButton("🌅 أذكار", callback_data="azkar")],
+        [InlineKeyboardButton("📖 القرآن", callback_data="quran")],
+        [InlineKeyboardButton("📖 ختمتي", callback_data="khatma")],
         [InlineKeyboardButton("🎧 اختيار القارئ", callback_data="reciter")],
-        [InlineKeyboardButton("📿 سبحة", callback_data="tasbeeh_0_0")],
-        [InlineKeyboardButton("📊 لوحتي", callback_data="dashboard")],
-        [InlineKeyboardButton("🎯 التحدي اليومي", callback_data="challenge")]
+        [InlineKeyboardButton("📊 حسابي", callback_data="dashboard")]
     ])
-
-def back_btn():
-    return [[InlineKeyboardButton("⬅️ رجوع", callback_data="back")]]
 
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = str(update.effective_user.id)
+    name = update.effective_user.first_name or "صديقي"
 
     if uid not in users:
         users[uid] = {
-            "reciter": "afs",
-            "points": 0,
-            "level": 1,
-            "read": 0,
-            "listen": 0,
-            "tasbeeh": 0,
-            "last_day": "",
-            "challenge": {}
+            "reciter": "الحصري",
+            "khatma": {"sura": 1, "ayah": 0}
         }
         save_users(users)
 
-    text = """🌙 أهلاً بك
+    text = f"""
+🤍 أهلاً بيك يا {name}
 
-📖 تم تطوير البوت بواسطة:
-أحمد جاب الله - الحجيرات (قنا)
+📖 اقرأ القرآن بسهولة
+🎧 اسمع بأجمل الأصوات
 
-🤍 صدقة جارية
+━━━━━━━━━━━━━━━
+👨‍💻 تطوير:
+أحمد المهدي  
+📍 قنا - الحجيرات  
 
-اختر من القائمة 👇"""
+📲 https://t.me/@Ahmed_el_mehdi
+━━━━━━━━━━━━━━━
+"""
 
     await update.message.reply_text(text, reply_markup=main_menu())
-
-# ================= LEVEL =================
-def update_level(u):
-    u["level"] = u["points"] // 10 + 1
-
-# ================= CHALLENGE =================
-def reset_challenge(uid):
-    users[uid]["challenge"] = {
-        "read": 0,
-        "listen": False,
-        "tasbeeh": 0,
-        "goal_read": 3,
-        "goal_tasbeeh": 20,
-        "done": False
-    }
-
-def check_new_day(uid):
-    today = datetime.now().strftime("%Y-%m-%d")
-    if users[uid]["last_day"] != today:
-        users[uid]["last_day"] = today
-        reset_challenge(uid)
-
-def check_challenge(uid):
-    ch = users[uid]["challenge"]
-
-    if (
-        ch["read"] >= ch["goal_read"]
-        and ch["listen"]
-        and ch["tasbeeh"] >= ch["goal_tasbeeh"]
-        and not ch["done"]
-    ):
-        users[uid]["points"] += 10
-        ch["done"] = True
-        return True
-    return False
 
 # ================= BUTTONS =================
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -128,137 +75,92 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     uid = str(query.from_user.id)
-    check_new_day(uid)
+    user = users[uid]
 
-    data = query.data
+    # ===== قائمة السور =====
+    if query.data == "quran":
+        kb = [[InlineKeyboardButton(f"سورة {i}", callback_data=f"sura_{i}_0")] for i in range(1,115)]
+        await query.edit_message_text("📖 اختر سورة", reply_markup=InlineKeyboardMarkup(kb))
 
-    if data == "back":
-        await query.message.edit_text("🏠 الرئيسية", reply_markup=main_menu())
-        return
+    # ===== عرض سورة =====
+    elif query.data.startswith("sura_"):
+        parts = query.data.split("_")
+        sura = int(parts[1])
+        start = int(parts[2])
 
-    if data == "read":
-        buttons = [[InlineKeyboardButton(f"{i}", callback_data=f"sura_{i}")] for i in range(1, 115)]
-        buttons += back_btn()
-        await query.message.edit_text("📖 اختر سورة", reply_markup=InlineKeyboardMarkup(buttons))
-        return
+        res = requests.get(f"https://api.alquran.cloud/v1/surah/{sura}")
+        data = res.json()["data"]
+        ayat = data["ayahs"]
 
-    if data.startswith("sura_"):
-        sura = int(data.split("_")[1])
+        chunk = ayat[start:start+10]
 
-        await query.message.edit_text("⏳ جاري التحميل...")
+        text = f"📖 سورة {data['name']}\n\n"
+        for a in chunk:
+            text += f"﴿{a['numberInSurah']}﴾ {a['text']}\n\n"
 
-        try:
-            res = requests.get(f"https://api.alquran.cloud/v1/surah/{sura}")
-            data_json = res.json()
+        # حفظ للختمة
+        user["khatma"]["sura"] = sura
+        user["khatma"]["ayah"] = start
+        save_users(users)
 
-            name = data_json["data"]["name"]
-            ayat = data_json["data"]["ayahs"]
+        buttons_list = []
 
-            text = f"📖 سورة {name}\n\n"
-            for a in ayat[:5]:
-                text += a["text"] + "\n"
+        if start > 0:
+            buttons_list.append(
+                InlineKeyboardButton("⬅️ السابق", callback_data=f"sura_{sura}_{start-10}")
+            )
 
-            await query.message.edit_text(text, reply_markup=main_menu())
+        if start + 10 < len(ayat):
+            buttons_list.append(
+                InlineKeyboardButton("➡️ التالي", callback_data=f"sura_{sura}_{start+10}")
+            )
 
-            rec = users[uid]["reciter"]
+        nav = [buttons_list] if buttons_list else []
+        nav.append([InlineKeyboardButton("🏠 الرئيسية", callback_data="home")])
+
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(nav))
+
+        # صوت مرة واحدة
+        if start == 0:
+            rec = RECITERS[user["reciter"]]
             audio = f"https://server8.mp3quran.net/{rec}/{sura:03}.mp3"
             await query.message.reply_audio(audio=audio)
 
-            users[uid]["read"] += 1
-            users[uid]["listen"] += 1
-            users[uid]["points"] += 4
-            users[uid]["challenge"]["read"] += 1
-            users[uid]["challenge"]["listen"] = True
+    # ===== ختمة =====
+    elif query.data == "khatma":
+        sura = user["khatma"]["sura"]
+        ayah = user["khatma"]["ayah"]
 
-            if check_challenge(uid):
-                await query.message.reply_text("🎉 أنهيت التحدي +10 نقاط")
+        await query.edit_message_text(
+            f"📖 آخر مكان ليك:\nسورة {sura}\nآية رقم {ayah+1}",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📖 كمل القراءة", callback_data=f"sura_{sura}_{ayah}")],
+                [InlineKeyboardButton("🏠 رجوع", callback_data="home")]
+            ])
+        )
 
-            update_level(users[uid])
-            save_users(users)
+    # ===== قارئ =====
+    elif query.data == "reciter":
+        kb = [[InlineKeyboardButton(k, callback_data=f"rec_{k}")] for k in RECITERS]
+        kb.append([InlineKeyboardButton("🏠 رجوع", callback_data="home")])
+        await query.edit_message_text("🎧 اختر قارئ", reply_markup=InlineKeyboardMarkup(kb))
 
-        except:
-            await query.message.edit_text("❌ خطأ")
-        return
-
-    if data == "azkar":
-        zikr = random.sample(AZKAR, k=3)
-        await query.message.edit_text("\n\n".join(zikr), reply_markup=main_menu())
-        return
-
-    if data == "reciter":
-        buttons = [[InlineKeyboardButton(k, callback_data=f"rec_{k}")] for k in RECITERS]
-        buttons += back_btn()
-        await query.message.edit_text("🎧 اختر قارئ", reply_markup=InlineKeyboardMarkup(buttons))
-        return
-
-    if data.startswith("rec_"):
-        name = data.replace("rec_", "")
-        users[uid]["reciter"] = RECITERS[name]
+    elif query.data.startswith("rec_"):
+        name = query.data.replace("rec_", "")
+        user["reciter"] = name
         save_users(users)
-        await query.answer("✅ تم")
-        return
+        await query.edit_message_text(f"✅ تم اختيار: {name}", reply_markup=main_menu())
 
-    if data.startswith("tasbeeh"):
-        parts = data.split("_")
-        count = int(parts[1])
-        index = int(parts[2])
+    # ===== حساب =====
+    elif query.data == "dashboard":
+        await query.edit_message_text(
+            f"🎧 القارئ: {user['reciter']}\n📖 ختمتك عند سورة {user['khatma']['sura']}",
+            reply_markup=main_menu()
+        )
 
-        Z = ["الحمد لله", "سبحان الله", "الله أكبر"]
+    elif query.data == "home":
+        await query.edit_message_text("🏠 القائمة الرئيسية", reply_markup=main_menu())
 
-        count += 1
-
-        if count >= 33:
-            count = 0
-            index = (index + 1) % 3
-
-        users[uid]["tasbeeh"] += 1
-        users[uid]["points"] += 1
-        users[uid]["challenge"]["tasbeeh"] += 1
-
-        if check_challenge(uid):
-            await query.answer("🎉 خلصت التحدي!")
-
-        update_level(users[uid])
-        save_users(users)
-
-        kb = [
-            [InlineKeyboardButton(f"{Z[index]}", callback_data=f"tasbeeh_{count}_{index}")],
-            [InlineKeyboardButton(f"🔢 {count}", callback_data="ignore")],
-            [InlineKeyboardButton("⬅️ رجوع", callback_data="back")]
-        ]
-
-        await query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(kb))
-        return
-
-    if data == "ignore":
-        return
-
-    if data == "dashboard":
-        u = users[uid]
-        text = f"""
-📊 بياناتك
-
-📖 {u['read']}
-🎧 {u['listen']}
-📿 {u['tasbeeh']}
-
-⭐ {u['points']}
-🏆 {u['level']}
-"""
-        await query.message.edit_text(text, reply_markup=main_menu())
-        return
-
-    if data == "challenge":
-        ch = users[uid]["challenge"]
-        text = f"""
-🎯 التحدي اليومي
-
-📖 {ch['read']}/{ch['goal_read']}
-🎧 {'✅' if ch['listen'] else '❌'}
-📿 {ch['tasbeeh']}/{ch['goal_tasbeeh']}
-"""
-        await query.message.edit_text(text, reply_markup=main_menu())
-        return
 
 # ================= RUN =================
 app = ApplicationBuilder().token(TOKEN).build()
