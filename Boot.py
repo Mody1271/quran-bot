@@ -7,7 +7,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandle
 TOKEN = os.getenv("TOKEN")
 
 ADMIN_ID = 6310727080
-DEV_USERNAME = "@Ahmed_el_mehdi"
+DEV_USERNAME = "Ahmed_el_mehdi"
 
 # ===== تخزين =====
 users = set()
