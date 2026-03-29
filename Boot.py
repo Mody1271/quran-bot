@@ -19,6 +19,8 @@ user_surah = {}
 user_tasbeeh_index = {}
 user_tasbeeh_count = {}
 
+last_zekr = {}
+
 # ===== أسماء السور =====
 SURA_NAMES = [
 "الفاتحة","البقرة","آل عمران","النساء","المائدة","الأنعام","الأعراف","الأنفال","التوبة","يونس",
@@ -40,9 +42,9 @@ READERS = {
     "husary": "husr",
     "abdulbasit": "basit",
     "minshawi": "minsh",
-    "dossary": "yasser",
-    "qattami": "nasser",
-    "qhtani": "qhtani"
+    "dossary": "dosary",
+    "qattami": "qtm",
+    "qhtani": "qahtani"
 }
 
 READERS_NAMES = {
@@ -61,14 +63,28 @@ AZKAR = [
 "اللهم صل وسلم على نبينا محمد",
 "لا إله إلا أنت سبحانك إني كنت من الظالمين",
 "اللهم ارزقني حسن الخاتمة",
-"اللهم اجعل القرآن ربيع قلبي"
+"اللهم اجعل القرآن ربيع قلبي",
+"اللهم إني أعوذ بك من الهم والحزن",
+"اللهم إني أسألك الجنة",
+"اللهم ثبت قلبي على دينك",
+"اللهم اغفر لي ولوالدي",
+"اللهم ارزقني راحة البال",
+"اللهم اشفني واشف مرضى المسلمين",
+"اللهم تقبل مني صالح الأعمال",
+"اللهم ارزقني التوفيق في حياتي",
+"اللهم اهدني واهد بي",
+"اللهم اجعلني من الصالحين",
+"اللهم ارزقني الإخلاص",
+"اللهم اجعلني من أهل الجنة",
+"اللهم اغفر ذنوبي كلها",
+"اللهم ارحمني برحمتك"
 ]
 
 # ===== سبحة =====
 TASBEEH_SEQUENCE = [
 {"text":"سبحان الله","count":33},
 {"text":"الحمد لله","count":33},
-{"text":"الله أكبر","count":34}
+{"text":"الله أكبر","count":33}
 ]
 
 # ===== نقاط =====
@@ -100,16 +116,16 @@ async def start(update:Update,context:ContextTypes.DEFAULT_TYPE):
         reply_markup=main_menu(uid)
     )
 
-# ===== قائمة السور (شبكة شيك) =====
+# ===== السور =====
 def surah_menu():
     buttons=[]
-    for i in range(0,114,4):  # 👈 4 في الصف
+    for i in range(0,114,4):
         row=[InlineKeyboardButton(SURA_NAMES[j],callback_data=f"sura_{j+1}") for j in range(i,i+4) if j<114]
         buttons.append(row)
-    buttons.append([InlineKeyboardButton("🔙 رجوع",callback_data="back")])
+    buttons.append([InlineKeyboardButton("🔙",callback_data="back")])
     return InlineKeyboardMarkup(buttons)
 
-# ===== عرض الآيات =====
+# ===== عرض =====
 async def send_ayat(query,uid):
     sura=user_surah.get(uid,1)
     page=user_page.get(uid,0)
@@ -134,20 +150,22 @@ async def send_ayat(query,uid):
     )
 
 # ===== الصوت =====
-async def send_audio(query,uid):
-    sura=user_surah.get(uid,1)
-    reader=user_reader.get(uid,"husary")
-    reciter=READERS.get(reader,"husr")
+async def send_audio(query, uid):
+    sura = user_surah.get(uid, 1)
+    reader = user_reader.get(uid, "husary")
 
-    url=f"https://server8.mp3quran.net/{reciter}/{int(sura):03}.mp3"
+    server = "https://server8.mp3quran.net"
+    reciter = READERS.get(reader, "husr")
 
-    loading=await query.message.reply_text("⏳ جاري تحميل الصوت...")
+    url = f"{server}/{reciter}/{int(sura):03}.mp3"
+
+    loading = await query.message.reply_text("⏳ جاري تحميل الصوت...")
 
     try:
         await query.message.reply_audio(audio=url)
         await loading.delete()
     except:
-        fallback=f"https://server8.mp3quran.net/husr/{int(sura):03}.mp3"
+        fallback = f"{server}/husr/{int(sura):03}.mp3"
         await query.message.reply_audio(audio=fallback)
         await loading.delete()
 
@@ -190,11 +208,21 @@ async def buttons(update:Update,context:ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(f"✅ {READERS_NAMES[r]}",reply_markup=main_menu(uid))
 
     elif query.data=="azkar":
-        z=random.choice(AZKAR)
-        await query.edit_message_text(z,reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔄",callback_data="azkar"),
-             InlineKeyboardButton("🔙",callback_data="back")]
-        ]))
+        prev = last_zekr.get(uid)
+        new = random.choice(AZKAR)
+
+        while new == prev:
+            new = random.choice(AZKAR)
+
+        last_zekr[uid] = new
+
+        await query.edit_message_text(
+            new,
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄",callback_data="azkar"),
+                 InlineKeyboardButton("🔙",callback_data="back")]
+            ])
+        )
 
     elif query.data=="tasbeeh_menu":
         user_tasbeeh_index[uid]=0
