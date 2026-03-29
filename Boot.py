@@ -5,40 +5,58 @@ from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandle
 
 TOKEN = os.getenv("TOKEN")
 
-ADMIN_ID = 123456789  # 👈 حط ايديك
-DEV_USERNAME = "YourUsername"
+ADMIN_ID = 6310727080
+DEV_USERNAME = "@Ahmed_el_mehdi"
 
 # --------- تخزين ---------
+users = set()
+user_points = {}
 user_reader = {}
 user_page = {}
 user_surah = {}
 user_counter = {}
-user_points = {}
-users = set()
+broadcast_mode = {}
 
+# --------- أسماء السور ---------
+SURA_NAMES = [
+"الفاتحة","البقرة","آل عمران","النساء","المائدة","الأنعام","الأعراف","الأنفال","التوبة","يونس",
+"هود","يوسف","الرعد","إبراهيم","الحجر","النحل","الإسراء","الكهف","مريم","طه",
+"الأنبياء","الحج","المؤمنون","النور","الفرقان","الشعراء","النمل","القصص","العنكبوت","الروم",
+"لقمان","السجدة","الأحزاب","سبأ","فاطر","يس","الصافات","ص","الزمر","غافر",
+"فصلت","الشورى","الزخرف","الدخان","الجاثية","الأحقاف","محمد","الفتح","الحجرات","ق",
+"الذاريات","الطور","النجم","القمر","الرحمن","الواقعة","الحديد","المجادلة","الحشر","الممتحنة",
+"الصف","الجمعة","المنافقون","التغابن","الطلاق","التحريم","الملك","القلم","الحاقة","المعارج",
+"نوح","الجن","المزمل","المدثر","القيامة","الإنسان","المرسلات","النبأ","النازعات","عبس",
+"التكوير","الانفطار","المطففين","الانشقاق","البروج","الطارق","الأعلى","الغاشية","الفجر","البلد",
+"الشمس","الليل","الضحى","الشرح","التين","العلق","القدر","البينة","الزلزلة","العاديات",
+"القارعة","التكاثر","العصر","الهمزة","الفيل","قريش","الماعون","الكوثر","الكافرون","النصر",
+"المسد","الإخلاص","الفلق","الناس"
+]
+
+# --------- القراء ---------
 READERS = {
+    "husary": "husr",
+    "abdulbasit": "basit",
+    "minshawi": "minsh",
+    "dossary": "yasser",
+    "qattami": "nasser",
+    "qhtani": "qhtani"
+}
+
+READERS_NAMES = {
     "husary": "الحصري",
     "abdulbasit": "عبد الباسط",
     "minshawi": "المنشاوي",
-    "qhtani": "ياسر القحطاني",
     "dossary": "ياسر الدوسري",
-    "qattami": "ناصر القطامي"
+    "qattami": "ناصر القطامي",
+    "qhtani": "ياسر القحطاني"
 }
 
-AZKAR = [
-    "سبحان الله",
-    "الحمد لله",
-    "الله أكبر",
-    "لا إله إلا الله",
-    "أستغفر الله",
-    "اللهم صل على محمد"
-]
+AZKAR = ["سبحان الله","الحمد لله","الله أكبر","لا إله إلا الله","أستغفر الله"]
 
-broadcast_mode = {}
-
-# --------- أدوات ---------
-def add_points(user_id, amount=1):
-    user_points[user_id] = user_points.get(user_id, 0) + amount
+# --------- نقاط ---------
+def add_points(uid, n=1):
+    user_points[uid] = user_points.get(uid, 0) + n
 
 # --------- واجهات ---------
 def main_menu():
@@ -50,104 +68,67 @@ def main_menu():
         [InlineKeyboardButton("👑 المطور", url=f"https://t.me/{DEV_USERNAME}")]
     ])
 
-def readers_menu():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton(name, callback_data=f"reader_{k}")]
-        for k, name in READERS.items()
-    ] + [[InlineKeyboardButton("🔙 رجوع", callback_data="back")]])
+def surah_menu():
+    buttons = []
+    for i in range(0,114,3):
+        row = [InlineKeyboardButton(SURA_NAMES[j], callback_data=f"sura_{j+1}") for j in range(i,i+3) if j<114]
+        buttons.append(row)
+    buttons.append([InlineKeyboardButton("🔙 رجوع", callback_data="back")])
+    return InlineKeyboardMarkup(buttons)
 
-def azkar_menu(uid):
-    count = user_counter.get(uid, 0)
-    zekr = AZKAR[count % len(AZKAR)]
-    return zekr, InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"📿 {count}", callback_data="tasbeeh")],
-        [InlineKeyboardButton("🔙 رجوع", callback_data="back")]
-    ])
-
-# --------- أوامر ---------
+# --------- بدء ---------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     name = update.effective_user.first_name
 
     users.add(uid)
-    add_points(uid, 1)
+    add_points(uid)
 
     await update.message.reply_text(
-        f"🤍 أهلا يا {name}\n\nبوت نور القرآن\n\n"
-        "👑 تطوير: أحمد المهدي - قنا الحجيرات",
+        f"🤍 أهلاً يا {name}\n\nبوت القرآن الكريم\n\n👑 تطوير:\nأحمد المهدي - قنا الحجيرات",
         reply_markup=main_menu()
     )
 
-# --------- القرآن ---------
+# --------- عرض الآيات ---------
 async def send_ayat(query, uid):
-    surah = user_surah.get(uid, "1")
-    page = user_page.get(uid, 0)
+    sura = user_surah.get(uid,1)
+    page = user_page.get(uid,0)
 
-    url = f"https://api.alquran.cloud/v1/surah/{surah}"
-    data = requests.get(url).json()
+    res = requests.get(f"https://api.alquran.cloud/v1/surah/{sura}")
+    data = res.json()["data"]["ayahs"]
 
-    ayat = data["data"]["ayahs"]
-    selected = ayat[page*10:(page*10)+10]
+    chunk = data[page*10:(page*10)+10]
 
-    text = "\n\n".join([f"{a['numberInSurah']}. {a['text']}" for a in selected])
+    text = f"📖 سورة {SURA_NAMES[sura-1]}\n\n"
+    for a in chunk:
+        text += f"﴿{a['numberInSurah']}﴾ {a['text']}\n\n"
 
     await query.edit_message_text(
         text,
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("⬅️", callback_data="prev"),
-             InlineKeyboardButton("➡️", callback_data="next")],
-            [InlineKeyboardButton("🔊 صوت", callback_data="audio")],
-            [InlineKeyboardButton("🔙", callback_data="back")]
+            [InlineKeyboardButton("⬅️",callback_data="prev"),
+             InlineKeyboardButton("➡️",callback_data="next")],
+            [InlineKeyboardButton("🔊 تشغيل الصوت",callback_data="audio")],
+            [InlineKeyboardButton("🔙",callback_data="back")]
         ])
     )
 
 # --------- الصوت ---------
 async def send_audio(query, uid):
-    surah = user_surah.get(uid, "1")
-    reader = user_reader.get(uid, "husary")
+    sura = user_surah.get(uid,1)
+    reader = user_reader.get(uid,"husary")
 
-    url = f"https://server8.mp3quran.net/{reader}/{int(surah):03}.mp3"
-    await query.message.reply_audio(url)
+    url = f"https://server8.mp3quran.net/{READERS[reader]}/{int(sura):03}.mp3"
 
-# --------- لوحة المشرف ---------
-async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
+    loading = await query.message.reply_text("⏳ جاري تحميل الصوت...")
 
-    await update.message.reply_text(
-        f"👑 لوحة التحكم\n\nالمستخدمين: {len(users)}",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("📢 إذاعة", callback_data="broadcast")]
-        ])
-    )
-
-# --------- الإذاعة ---------
-async def handle_admin_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    uid = query.from_user.id
-    await query.answer()
-
-    if uid != ADMIN_ID:
-        return
-
-    if query.data == "broadcast":
-        broadcast_mode[uid] = True
-        await query.message.reply_text("✉️ ابعت الرسالة الآن")
-
-# --------- استقبال رسالة المشرف ---------
-async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-
-    if broadcast_mode.get(uid):
-        msg = update.message.text
-        for user in users:
-            try:
-                await context.bot.send_message(user, msg)
-            except:
-                pass
-
-        broadcast_mode[uid] = False
-        await update.message.reply_text("✅ تم الإرسال")
+    try:
+        await query.message.reply_audio(audio=url)
+        await loading.delete()
+    except:
+        fallback = f"https://server8.mp3quran.net/husr/{int(sura):03}.mp3"
+        await query.message.reply_audio(audio=fallback)
+        await loading.delete()
 
 # --------- الأزرار ---------
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -155,63 +136,64 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = query.from_user.id
     await query.answer()
 
-    add_points(uid, 1)
+    add_points(uid)
 
-    data = query.data
+    if query.data=="quran":
+        await query.edit_message_text("اختر السورة",reply_markup=surah_menu())
 
-    if data == "quran":
-        await query.edit_message_text("📖 اختر سورة:", reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton(str(i), callback_data=f"surah_{i}") for i in range(1, 6)],
-            [InlineKeyboardButton("🔙", callback_data="back")]
+    elif query.data.startswith("sura_"):
+        user_surah[uid]=int(query.data.split("_")[1])
+        user_page[uid]=0
+        await send_ayat(query,uid)
+
+    elif query.data=="next":
+        user_page[uid]+=1
+        await send_ayat(query,uid)
+
+    elif query.data=="prev":
+        user_page[uid]=max(0,user_page[uid]-1)
+        await send_ayat(query,uid)
+
+    elif query.data=="audio":
+        await send_audio(query,uid)
+
+    elif query.data=="reader":
+        kb=[[InlineKeyboardButton(v,callback_data=f"r_{k}")] for k,v in READERS_NAMES.items()]
+        kb.append([InlineKeyboardButton("🔙",callback_data="back")])
+        await query.edit_message_text("اختر القارئ",reply_markup=InlineKeyboardMarkup(kb))
+
+    elif query.data.startswith("r_"):
+        r=query.data.split("_")[1]
+        user_reader[uid]=r
+        await query.edit_message_text(f"تم اختيار {READERS_NAMES[r]}",reply_markup=main_menu())
+
+    elif query.data=="azkar":
+        c=user_counter.get(uid,0)
+        z=AZKAR[c%len(AZKAR)]
+        await query.edit_message_text(z,reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"📿 {c}",callback_data="tasbeeh")],
+            [InlineKeyboardButton("🔙",callback_data="back")]
         ]))
 
-    elif data.startswith("surah_"):
-        user_surah[uid] = data.split("_")[1]
-        user_page[uid] = 0
-        await send_ayat(query, uid)
+    elif query.data=="tasbeeh":
+        user_counter[uid]=user_counter.get(uid,0)+1
+        c=user_counter[uid]
+        z=AZKAR[c%len(AZKAR)]
+        await query.edit_message_text(z,reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"📿 {c}",callback_data="tasbeeh")],
+            [InlineKeyboardButton("🔙",callback_data="back")]
+        ]))
 
-    elif data == "next":
-        user_page[uid] += 1
-        await send_ayat(query, uid)
+    elif query.data=="points":
+        await query.edit_message_text(f"🏆 نقاطك: {user_points.get(uid,0)}",reply_markup=main_menu())
 
-    elif data == "prev":
-        user_page[uid] = max(0, user_page[uid]-1)
-        await send_ayat(query, uid)
-
-    elif data == "audio":
-        await send_audio(query, uid)
-
-    elif data == "reader":
-        await query.edit_message_text("اختر القارئ", reply_markup=readers_menu())
-
-    elif data.startswith("reader_"):
-        key = data.split("_")[1]
-        user_reader[uid] = key
-        await query.edit_message_text(f"تم اختيار {READERS[key]}", reply_markup=main_menu())
-
-    elif data == "azkar":
-        zekr, markup = azkar_menu(uid)
-        await query.edit_message_text(zekr, reply_markup=markup)
-
-    elif data == "tasbeeh":
-        user_counter[uid] = user_counter.get(uid, 0)+1
-        zekr, markup = azkar_menu(uid)
-        await query.edit_message_text(zekr, reply_markup=markup)
-
-    elif data == "points":
-        pts = user_points.get(uid, 0)
-        await query.edit_message_text(f"🏆 نقاطك: {pts}", reply_markup=main_menu())
-
-    elif data == "back":
-        await query.edit_message_text("🏠 الرئيسية", reply_markup=main_menu())
+    elif query.data=="back":
+        await query.edit_message_text("🏠 الرئيسية",reply_markup=main_menu())
 
 # --------- تشغيل ---------
 app = ApplicationBuilder().token(TOKEN).build()
 
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("admin", admin_panel))
+app.add_handler(CommandHandler("start",start))
 app.add_handler(CallbackQueryHandler(buttons))
-app.add_handler(CallbackQueryHandler(handle_admin_buttons))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_messages))
 
 app.run_polling()
